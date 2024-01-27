@@ -1,2 +1,3 @@
-.env
-my-secret-start.sh
+*.env
+append-etc-hosts.sh
+start.sh
