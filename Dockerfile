@@ -5,7 +5,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV LANG C.UTF-8
 
 RUN apt-get update \
-    && apt-get install -q -y kmod ppp net-tools iputils-ping strongswan xl2tpd dnsutils curl privoxy \
+    && apt-get install -q -y kmod ppp net-tools iputils-ping strongswan xl2tpd privoxy \
     && rm -rf /var/lib/apt/lists/*
 
 COPY files/conf/privoxy.conf /etc/privoxy/config
