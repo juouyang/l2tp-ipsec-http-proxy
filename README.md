@@ -6,21 +6,18 @@ VPN_SERVER_IP='xxx.xxx.xxx.xxx'
 VPN_IPSEC_PSK='my pre shared key'
 VPN_USER='myuser@myhost.com'
 VPN_PASSWORD='mypass'
+
+PRIVATE_LAN_DNS=192.168.123.123
+PRIVATE_LAN_IP_SUBNET=192.168.123.0/24
 ```
+
+> **Note:** The default routing table settings are designed to exclusively route private LAN traffic ONLY.
 
 Create a file named append-etc-hosts.sh
 ```
 echo '# fixed dns' >> /etc/hosts
 echo 192.168.123.123 host.domain >> /etc/hosts
 ```
-
-Edit the entrypoint.sh file and update the values of the following variables:
-```
-PRIVATE_LAN_DNS=192.168.123.123
-PRIVATE_LAN_IP_SUBNET=192.168.123.0/24
-```
-
-> **Note:** The default routing table settings are designed to exclusively route private LAN traffic ONLY.
 
 ## Run
 ```
@@ -30,6 +27,10 @@ docker run --privileged -d --name l2tp-ipsec \
     -v ./l2tp-ipsec.env:/l2tp-ipsec.env \
     -v ./append-etc-hosts.sh:/append-etc-hosts.sh \
     -p 8118:8118 \
+    --health-cmd='ping 192.168.123.123 -c 1 -W 1 || exit 1' \
+    --health-timeout=1s \
+    --health-retries=3 \
+    --health-interval=10s \
     juouyang/l2tp-ipsec-http-proxy:1.0.0
 docker logs -f l2tp-ipsec
 ```
