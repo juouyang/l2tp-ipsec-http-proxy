@@ -21,7 +21,7 @@ RUN chmod 600 /etc/ipsec.secrets \
     && mkdir -p /var/run/xl2tpd \
     && touch /var/run/xl2tpd/l2tp-control
 
-HEALTHCHECK --start-period=30s CMD ip -f inet addr show ppp0 || exit 1
+# HEALTHCHECK --start-period=30s CMD ip -f inet addr show ppp0 || exit 1
 
 STOPSIGNAL SIGTERM
 

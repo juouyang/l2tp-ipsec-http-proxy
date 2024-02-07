@@ -1,5 +1,37 @@
 #!/bin/bash
 
+function connect_vpn {
+  ipsec restart
+  service xl2tpd restart
+  ipsec up myvpn
+  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
+
+  echo "waiting for ppp0 ..."
+  count=0 # 記錄檢查的次數
+  while [ -z "$(ifconfig ppp0 2>/dev/null)" -a $count -lt 10 ] ; do # 如果 ppp0 不存在且檢查次數小於 10
+      snooze 3 &
+      wait $!
+      count=$((count+1)) # 每次檢查後將次數加一
+  done
+  # 檢查 ppp0 介面是否存在
+  if [ -z "$(ifconfig ppp0 2>/dev/null)" ]; then # 如果不存在，則輸出錯誤訊息並退出腳本，返回 1
+    echo "ppp0 interface not found"
+    exit 1
+  fi
+  echo "ppp0 is up! waiting for IP of ppp0 ..."
+  snooze 10 &
+  wait $!
+  PPP_IP=$(ip -f inet addr show ppp0 | awk '/inet / {print $2}')
+  echo $PPP_IP
+  ip route add $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev ppp0
+}
+
+function disconnect_vpn {
+  echo "d myvpn" > /var/run/xl2tpd/l2tp-control
+  ifconfig ppp0 down
+  ipsec down myvpn
+}
+
 # 設置信號處理函數
 sigterm_handler() {
   # 在這裡執行接收到 SIGTERM 信號時要執行的操作
@@ -42,48 +74,27 @@ sh /append-etc-hosts.sh
 
 while true
 do
-  if ping -c 1 -W 1 $PRIVATE_LAN_DNS >/dev/null 2>&1; then
+  if ping -c 1 -W 1 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
     snooze 3 &
     wait $!
   else
-    if ping -c 10 -W 10 1.1.1.1 >/dev/null 2>&1; then
+    if ! ping -c 1 -W 1 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1 && ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; then
+      echo "Internet access is available, but the VPN is not activated."
       break
     fi
   fi
 done
 
-function connect_vpn {
-  ipsec restart
-  service xl2tpd restart
-  ipsec up myvpn
-  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
-
-  echo "waiting for ppp0 ..."
-  while [ -z "$(ifconfig ppp0 2>/dev/null)" ] ; do
-      snooze 3 &
-      wait $!
-  done
-  echo "ppp0 is up! waiting for IP of ppp0 ..."
-  snooze 10 &
-  wait $!
-  PPP_IP=$(ip -f inet addr show ppp0 | awk '/inet / {print $2}')
-  echo $PPP_IP
-  ip route add $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev ppp0
-}
-
 connect_vpn
 
 while true
 do
-  if ping -c 1 -W 1 $PRIVATE_LAN_DNS >/dev/null 2>&1; then
+  if ping -c 1 -W 1 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
     snooze 3 &
     wait $!
   else
-    echo "Ping $PRIVATE_LAN_DNS failed, shutdown container..."
-
-    echo "d myvpn" > /var/run/xl2tpd/l2tp-control
-    ifconfig ppp0 down
-    ipsec down myvpn
+    echo "Ping $PRIVATE_LAN_HEALTH_CHECK failed, shutdown container..."
+    disconnect_vpn
     exit 0
   fi
 done
