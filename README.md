@@ -8,7 +8,7 @@ VPN_USER='myuser@myhost.com'
 VPN_PASSWORD='mypass'
 
 PRIVATE_LAN_DNS=192.168.123.123
-PRIVATE_LAN_HEALTH_CHECK=192.168.123.123
+PRIVATE_LAN_HEALTH_CHECK=192.168.123.254
 PRIVATE_LAN_IP_SUBNET=192.168.123.0/24
 ```
 
@@ -32,7 +32,7 @@ docker run --privileged -d --name l2tp-ipsec \
     --health-timeout=1s \
     --health-retries=3 \
     --health-interval=10s \
-    juouyang/l2tp-ipsec-http-proxy:1.0.0
+    juouyang/l2tp-ipsec-http-proxy:1.0.2
 docker logs -f l2tp-ipsec
 ```
 

@@ -1,9 +1,34 @@
 #!/bin/bash
 
 function connect_vpn {
+  echo "restart ipsec"
   ipsec restart
+  echo "restart l2tpd"
   service xl2tpd restart
+  echo "connect ipsec"
   ipsec up myvpn
+
+  # 定義一個變數來儲存您想要的字串
+  target="1 up, 0 connecting"
+  # 定義一個變數來儲存等待的秒數
+  wait_time=3
+  # 使用一個無限迴圈來重複檢查
+  echo "wait for ipsec ESTABLISHED ..."
+  while true; do
+    # 執行 ipsec status 命令並使用 grep 命令來檢查背景程序的輸出是否包含目標字串
+    ipsec status | grep -q "$target"
+    match=$?
+    # 如果退出狀態是 0，表示找到了目標字串，則跳出迴圈
+    if [ $match -eq 0 ]; then
+      echo "ipsec status matched"
+      break
+    fi
+    # 如果沒有找到目標字串，則使用 sleep 命令來暫停一段時間，然後繼續迴圈
+    snooze $wait_time &
+    wait $!
+  done
+
+  echo "connect l2tp"
   echo "c myvpn" > /var/run/xl2tpd/l2tp-control
 
   echo "waiting for ppp0 ..."
