@@ -1,5 +1,9 @@
 #!/bin/bash
 
+function connect_l2tp {
+  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
+}
+
 function connect_vpn {
   echo "restart ipsec"
   ipsec restart
@@ -29,7 +33,8 @@ function connect_vpn {
   done
 
   echo "connect l2tp"
-  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
+  export -f connect_l2tp
+  timeout 10s bash -c connect_l2tp
 
   echo "waiting for ppp0 ..."
   count=0 # 記錄檢查的次數
