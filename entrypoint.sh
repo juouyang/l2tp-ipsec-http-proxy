@@ -115,16 +115,18 @@ do
   fi
 done
 
-connect_vpn
+echo "Connecting VPN ..."
+connect_vpn > /dev/null 2>&1
+echo $PPP_IP
 
 while true
 do
-  if ping -c 1 -W 1 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
+  if ping -c 10 -W 10 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
     snooze 3 &
     wait $!
   else
     echo "Ping $PRIVATE_LAN_HEALTH_CHECK failed, shutdown container..."
-    disconnect_vpn
+    disconnect_vpn > /dev/null 2>&1
     exit 0
   fi
 done
