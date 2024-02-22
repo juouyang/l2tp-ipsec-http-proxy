@@ -1,5 +1,9 @@
 #!/bin/bash
 
+function connect_l2tp {
+  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
+}
+
 function connect_vpn {
   echo "restart ipsec"
   ipsec restart
@@ -29,7 +33,8 @@ function connect_vpn {
   done
 
   echo "connect l2tp"
-  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
+  export -f connect_l2tp
+  timeout 10s bash -c connect_l2tp
 
   echo "waiting for ppp0 ..."
   count=0 # 記錄檢查的次數
@@ -110,16 +115,18 @@ do
   fi
 done
 
-connect_vpn
+echo "Connecting VPN ..."
+connect_vpn > /dev/null 2>&1
+echo $PPP_IP
 
 while true
 do
-  if ping -c 1 -W 1 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
+  if ping -c 10 -W 10 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
     snooze 3 &
     wait $!
   else
     echo "Ping $PRIVATE_LAN_HEALTH_CHECK failed, shutdown container..."
-    disconnect_vpn
+    disconnect_vpn > /dev/null 2>&1
     exit 0
   fi
 done

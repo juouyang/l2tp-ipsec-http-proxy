@@ -32,7 +32,7 @@ docker run --privileged -d --name l2tp-ipsec \
     --health-timeout=1s \
     --health-retries=3 \
     --health-interval=10s \
-    juouyang/l2tp-ipsec-http-proxy:1.0.2
+    juouyang/l2tp-ipsec-http-proxy:1.0.3
 docker logs -f l2tp-ipsec
 ```
 
