@@ -4,6 +4,12 @@ function connect_l2tp {
   echo "c myvpn" > /var/run/xl2tpd/l2tp-control
 }
 
+function disconnect_vpn {
+  echo "d myvpn" > /var/run/xl2tpd/l2tp-control
+  ifconfig ppp0 down
+  ipsec down myvpn
+}
+
 function connect_vpn {
   echo "restart ipsec"
   ipsec restart
@@ -46,6 +52,10 @@ function connect_vpn {
   # 檢查 ppp0 介面是否存在
   if [ -z "$(ifconfig ppp0 2>/dev/null)" ]; then # 如果不存在，則輸出錯誤訊息並退出腳本，返回 1
     echo "ppp0 interface not found"
+
+    echo "disconnect vpn"
+    export -f disconnect_vpn
+    timeout 10s bash -c disconnect_vpn
     exit 1
   fi
   echo "ppp0 is up! waiting for IP of ppp0 ..."
@@ -54,12 +64,6 @@ function connect_vpn {
   PPP_IP=$(ip -f inet addr show ppp0 | awk '/inet / {print $2}')
   echo $PPP_IP
   ip route add $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev ppp0
-}
-
-function disconnect_vpn {
-  echo "d myvpn" > /var/run/xl2tpd/l2tp-control
-  ifconfig ppp0 down
-  ipsec down myvpn
 }
 
 # 設置信號處理函數
@@ -116,12 +120,13 @@ do
 done
 
 echo "Connecting VPN ..."
-connect_vpn > /dev/null 2>&1
+# connect_vpn > /dev/null 2>&1
+connect_vpn
 echo $PPP_IP
 
 while true
 do
-  if ping -c 10 -W 10 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
+  if ping -c 10 -W 1 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
     snooze 3 &
     wait $!
   else
