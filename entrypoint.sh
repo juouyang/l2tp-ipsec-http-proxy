@@ -1,22 +1,36 @@
 #!/bin/bash
 
 function connect_l2tp {
+  echo "=================================
+        connect l2tp
+================================="
   echo "c myvpn" > /var/run/xl2tpd/l2tp-control
 }
 
+function connect_ipsec {
+  echo "=================================
+        connect ipsec
+================================="
+  ipsec up myvpn
+}
+
 function disconnect_vpn {
+  echo "=================================
+        disconnect vpn
+================================="
   echo "d myvpn" > /var/run/xl2tpd/l2tp-control
-  ifconfig ppp0 down
   ipsec down myvpn
 }
 
 function connect_vpn {
-  echo "restart ipsec"
+  echo "=================================
+        connect vpn
+================================="
   ipsec restart
-  echo "restart l2tpd"
   service xl2tpd restart
-  echo "connect ipsec"
-  ipsec up myvpn
+
+  export -f connect_ipsec
+  timeout 10s bash -c connect_ipsec
 
   # 定義一個變數來儲存您想要的字串
   target="1 up, 0 connecting"
@@ -38,32 +52,32 @@ function connect_vpn {
     wait $!
   done
 
-  echo "connect l2tp"
   export -f connect_l2tp
   timeout 10s bash -c connect_l2tp
 
-  echo "waiting for ppp0 ..."
+  echo "waiting for ppp interface ..."
   count=0 # 記錄檢查的次數
-  while [ -z "$(ifconfig ppp0 2>/dev/null)" -a $count -lt 10 ] ; do # 如果 ppp0 不存在且檢查次數小於 10
+  while [ -z "$(ifconfig |grep -E '^ppp*' 2>/dev/null)" -a $count -lt 10 ] ; do # 如果 ppp 不存在且檢查次數小於 10
       snooze 3 &
       wait $!
       count=$((count+1)) # 每次檢查後將次數加一
   done
-  # 檢查 ppp0 介面是否存在
-  if [ -z "$(ifconfig ppp0 2>/dev/null)" ]; then # 如果不存在，則輸出錯誤訊息並退出腳本，返回 1
-    echo "ppp0 interface not found"
 
-    echo "disconnect vpn"
+  # 檢查 ppp 介面是否存在
+  if [ -z "$(ifconfig |grep -E '^ppp*' 2>/dev/null)" ]; then # 如果不存在，則輸出錯誤訊息並退出腳本，返回 1
+    echo "ppp interface not found"
+
     export -f disconnect_vpn
     timeout 10s bash -c disconnect_vpn
+    snooze 30 & # delay before reconnect
     exit 1
   fi
-  echo "ppp0 is up! waiting for IP of ppp0 ..."
-  snooze 10 &
+  PPP_IF=$(ip addr show | awk '/inet.*ppp/ {print $NF}')
+  echo "ppp interface" $PPP_IF "is up! waiting for IP of" $PPP_IF
+  snooze 3 &
   wait $!
-  PPP_IP=$(ip -f inet addr show ppp0 | awk '/inet / {print $2}')
-  echo $PPP_IP
-  ip route add $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev ppp0
+  PPP_IP=$(ip addr show | awk '/inet.*ppp/ {print $2}')
+  ip route add $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev $PPP_IF
 }
 
 # 設置信號處理函數
@@ -72,10 +86,8 @@ sigterm_handler() {
   echo "Received SIGTERM. Cleaning up..."
   # 清理任務
   # ...
-  echo "d myvpn" > /var/run/xl2tpd/l2tp-control
-  ifconfig ppp0 down
-  ipsec down myvpn
-
+  export -f disconnect_vpn
+  timeout 6s bash -c disconnect_vpn
   # 結束腳本
   exit 0
 }
@@ -122,7 +134,7 @@ done
 echo "Connecting VPN ..."
 # connect_vpn > /dev/null 2>&1
 connect_vpn
-echo $PPP_IP
+echo "VPN Connected:" $PPP_IF $PPP_IP
 
 while true
 do
@@ -131,7 +143,8 @@ do
     wait $!
   else
     echo "Ping $PRIVATE_LAN_HEALTH_CHECK failed, shutdown container..."
-    disconnect_vpn > /dev/null 2>&1
+    export -f disconnect_vpn
+    timeout 6s bash -c disconnect_vpn
     exit 0
   fi
 done
