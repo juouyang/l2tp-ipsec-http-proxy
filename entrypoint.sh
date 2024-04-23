@@ -1,5 +1,9 @@
 #!/bin/bash
 
+function snooze {
+  sleep $1
+}
+
 function connect_l2tp {
   echo "=================================
         connect l2tp
@@ -20,12 +24,17 @@ function disconnect_vpn {
 ================================="
   echo "d myvpn" > /var/run/xl2tpd/l2tp-control
   ipsec down myvpn
+  rm -rf /var/run/ppp*
+  rm -rf /var/run/*charon*
+  rm -rf /var/run/xl2tpd/l2tp-control
 }
 
 function connect_vpn {
   echo "=================================
         connect vpn
 ================================="
+  rm -rf /var/run/ppp*
+  rm -rf /var/run/*charon*
   ipsec restart
   service xl2tpd restart
 
@@ -40,6 +49,7 @@ function connect_vpn {
   echo "wait for ipsec ESTABLISHED ..."
   while true; do
     # 執行 ipsec status 命令並使用 grep 命令來檢查背景程序的輸出是否包含目標字串
+    ipsec status | grep connect
     ipsec status | grep -q "$target"
     match=$?
     # 如果退出狀態是 0，表示找到了目標字串，則跳出迴圈
@@ -69,7 +79,8 @@ function connect_vpn {
 
     export -f disconnect_vpn
     timeout 10s bash -c disconnect_vpn
-    snooze 30 & # delay before reconnect
+    # delay before reconnect
+    sleep 30
     exit 1
   fi
   PPP_IF=$(ip addr show | awk '/inet.*ppp/ {print $NF}')
@@ -94,10 +105,6 @@ sigterm_handler() {
 
 # 設置 SIGTERM 信號處理器
 trap 'sigterm_handler' SIGTERM
-
-function snooze {
-    sleep $1
-}
 
 . /l2tp-ipsec.env
 

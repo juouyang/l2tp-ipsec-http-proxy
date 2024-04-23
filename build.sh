@@ -1,1 +1,1 @@
-docker build -t juouyang/l2tp-ipsec-http-proxy:1.0.4 .
+docker build -t juouyang/l2tp-ipsec-http-proxy:1.0.5 .
