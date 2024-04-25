@@ -47,6 +47,7 @@ function connect_vpn {
   wait_time=3
   # 使用一個無限迴圈來重複檢查
   echo "wait for ipsec ESTABLISHED ..."
+  count=0 # 記錄檢查的次數
   while true; do
     # 執行 ipsec status 命令並使用 grep 命令來檢查背景程序的輸出是否包含目標字串
     ipsec status | grep connect
@@ -57,9 +58,19 @@ function connect_vpn {
       echo "ipsec status matched"
       break
     fi
+    if [ $count -gt 10 ]; then
+      echo "ipsec status mis-matched"
+
+      export -f disconnect_vpn
+      timeout 10s bash -c disconnect_vpn
+      # delay before reconnect
+      sleep 30
+      exit 1
+    fi
     # 如果沒有找到目標字串，則使用 sleep 命令來暫停一段時間，然後繼續迴圈
     snooze $wait_time &
     wait $!
+    count=$((count+1)) # 每次檢查後將次數加一
   done
 
   export -f connect_l2tp
