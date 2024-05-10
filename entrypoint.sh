@@ -117,24 +117,23 @@ sigterm_handler() {
 # 設置 SIGTERM 信號處理器
 trap 'sigterm_handler' SIGTERM
 
-. /l2tp-ipsec.env
+echo "=================================
+        Config /etc/resolv.conf
+        Config /etc/hosts
+        Start proxy server ...
+================================="
+echo nameserver $PRIVATE_LAN_DNS > /etc/resolv.conf
+echo nameserver 1.1.1.1 >> /etc/resolv.conf
+sh /append-etc-hosts.sh
+privoxy /etc/privoxy/config
 
 # template out all the config files using env vars
+. /l2tp-ipsec.env
 sed -i 's/right=.*/right='$VPN_SERVER_IP'/' /etc/ipsec.conf
 echo ': PSK "'$VPN_IPSEC_PSK'"' > /etc/ipsec.secrets
 sed -i 's/lns = .*/lns = '$VPN_SERVER_IP'/' /etc/xl2tpd/xl2tpd.conf
 sed -i 's/name .*/name '$VPN_USER'/' /etc/ppp/options.l2tpd.client
 sed -i 's/password .*/password '$VPN_PASSWORD'/' /etc/ppp/options.l2tpd.client
-
-echo "Start proxy server ..."
-privoxy /etc/privoxy/config
-
-echo "Config /etc/resolv.conf"
-echo nameserver $PRIVATE_LAN_DNS > /etc/resolv.conf
-echo nameserver 1.1.1.1 >> /etc/resolv.conf
-
-echo "Config /etc/hosts"
-sh /append-etc-hosts.sh
 
 while true
 do
@@ -149,9 +148,10 @@ do
   fi
 done
 
-echo "Connecting VPN ..."
-# connect_vpn > /dev/null 2>&1
-connect_vpn
+echo "=================================
+        Connecting VPN ...
+================================="
+connect_vpn >/dev/null 2>&1
 echo "VPN Connected:" $PPP_IF $PPP_IP
 
 while true
