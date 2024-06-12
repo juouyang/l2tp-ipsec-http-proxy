@@ -1,27 +1,23 @@
 #!/bin/bash
 
+function check_pppoe_connection {
+  if ping -c 1 -W 1 $PPP_IP >/dev/null 2>&1; then
+    echo "PPP interface $PPP_IF is up and reachable."
+    return 0
+  else
+    echo "PPP interface $PPP_IF is down or unreachable."
+    return 1
+  fi
+}
+
 function snooze {
   sleep $1
 }
 
-function connect_l2tp {
-  echo "=================================
-        connect l2tp
-================================="
-  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
-}
-
-function connect_ipsec {
-  echo "=================================
-        connect ipsec
-================================="
-  ipsec up myvpn
-}
-
 function disconnect_vpn {
-  echo "=================================
+  echo "===================================
         disconnect vpn
-================================="
+  ================================="
   echo "d myvpn" > /var/run/xl2tpd/l2tp-control
   ipsec down myvpn
   rm -rf /var/run/ppp*
@@ -29,12 +25,26 @@ function disconnect_vpn {
   rm -rf /var/run/xl2tpd/l2tp-control
 }
 
+function connect_l2tp {
+  echo "===================================
+        connect l2tp
+  ================================="
+  echo "c myvpn" > /var/run/xl2tpd/l2tp-control
+}
+
+function connect_ipsec {
+  echo "===================================
+        connect ipsec
+  ================================="
+  ipsec up myvpn
+}
+
 function connect_vpn {
-  echo "=================================
+  echo "===================================
         connect vpn
-================================="
-  rm -rf /var/run/ppp*
-  rm -rf /var/run/*charon*
+ ================================="
+  # rm -rf /var/run/ppp*
+  # rm -rf /var/run/*charon*
   ipsec restart
   service xl2tpd restart
 
@@ -117,11 +127,11 @@ sigterm_handler() {
 # 設置 SIGTERM 信號處理器
 trap 'sigterm_handler' SIGTERM
 
-echo "=================================
+echo "===================================
         Config /etc/resolv.conf
         Config /etc/hosts
         Start proxy server ...
-================================="
+==================================="
 echo nameserver $PRIVATE_LAN_DNS > /etc/resolv.conf
 echo nameserver 1.1.1.1 >> /etc/resolv.conf
 sh /append-etc-hosts.sh
@@ -148,21 +158,27 @@ do
   fi
 done
 
-echo "=================================
+echo "===================================
         Connecting VPN ...
-================================="
-connect_vpn >/dev/null 2>&1
+==================================="
+connect_vpn # >/dev/null 2>&1
 echo "VPN Connected:" $PPP_IF $PPP_IP
 
 while true
 do
-  if ping -c 10 -W 1 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
+  if ping -c 10 -W 10 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
     snooze 3 &
     wait $!
   else
-    echo "Ping $PRIVATE_LAN_HEALTH_CHECK failed, shutdown container..."
-    export -f disconnect_vpn
-    timeout 6s bash -c disconnect_vpn
-    exit 0
+    echo "Ping $PRIVATE_LAN_HEALTH_CHECK failed, checking PPPoE connection..."
+    if check_pppoe_connection; then
+      snooze 3 &
+      wait $!
+    else
+      echo "PPPoE connection is down, shutdown container..."
+      export -f disconnect_vpn
+      timeout 6s bash -c disconnect_vpn
+      exit 0
+    fi
   fi
 done
