@@ -2,7 +2,7 @@
 
 function check_pppoe_connection {
   if ping -c 1 -W 1 $PPP_IP >/dev/null 2>&1; then
-    echo "PPP interface $PPP_IF is up and reachable."
+    # "PPP interface $PPP_IF is up and reachable."
     return 0
   else
     echo "PPP interface $PPP_IF is down or unreachable."
@@ -25,6 +25,13 @@ function disconnect_vpn {
   rm -rf /var/run/xl2tpd/l2tp-control
 }
 
+function connect_ipsec {
+  echo "===================================
+        connect ipsec
+  ================================="
+  ipsec up myvpn
+}
+
 function connect_l2tp {
   echo "===================================
         connect l2tp
@@ -32,11 +39,34 @@ function connect_l2tp {
   echo "c myvpn" > /var/run/xl2tpd/l2tp-control
 }
 
-function connect_ipsec {
+function wait_for_pppoe {
   echo "===================================
-        connect ipsec
+        wait for PPPoE
   ================================="
-  ipsec up myvpn
+  echo "waiting for ppp interface ..."
+  count=0 # 記錄檢查的次數
+  while [ -z "$(ifconfig |grep -E '^ppp*' 2>/dev/null)" -a $count -lt 10 ] ; do # 如果 ppp 不存在且檢查次數小於 10
+      snooze 3 &
+      wait $!
+      count=$((count+1)) # 每次檢查後將次數加一
+  done
+
+  # 檢查 ppp 介面是否存在
+  if [ -z "$(ifconfig |grep -E '^ppp*' 2>/dev/null)" ]; then # 如果不存在，則輸出錯誤訊息並退出腳本，返回 1
+    echo "ppp interface not found"
+
+    export -f disconnect_vpn
+    timeout 10s bash -c disconnect_vpn
+    # delay before reconnect
+    sleep 30
+    exit 1
+  fi
+  PPP_IF=$(ip addr show | awk '/inet.*ppp/ {print $NF}')
+  echo "ppp interface" $PPP_IF "is up! waiting for IP of" $PPP_IF
+  snooze 3 &
+  wait $!
+  PPP_IP=$(ip addr show | awk '/inet.*ppp/ {print $2}')
+  ip route add $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev $PPP_IF
 }
 
 function connect_vpn {
@@ -85,31 +115,7 @@ function connect_vpn {
 
   export -f connect_l2tp
   timeout 10s bash -c connect_l2tp
-
-  echo "waiting for ppp interface ..."
-  count=0 # 記錄檢查的次數
-  while [ -z "$(ifconfig |grep -E '^ppp*' 2>/dev/null)" -a $count -lt 10 ] ; do # 如果 ppp 不存在且檢查次數小於 10
-      snooze 3 &
-      wait $!
-      count=$((count+1)) # 每次檢查後將次數加一
-  done
-
-  # 檢查 ppp 介面是否存在
-  if [ -z "$(ifconfig |grep -E '^ppp*' 2>/dev/null)" ]; then # 如果不存在，則輸出錯誤訊息並退出腳本，返回 1
-    echo "ppp interface not found"
-
-    export -f disconnect_vpn
-    timeout 10s bash -c disconnect_vpn
-    # delay before reconnect
-    sleep 30
-    exit 1
-  fi
-  PPP_IF=$(ip addr show | awk '/inet.*ppp/ {print $NF}')
-  echo "ppp interface" $PPP_IF "is up! waiting for IP of" $PPP_IF
-  snooze 3 &
-  wait $!
-  PPP_IP=$(ip addr show | awk '/inet.*ppp/ {print $2}')
-  ip route add $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev $PPP_IF
+  wait_for_pppoe
 }
 
 # 設置信號處理函數
@@ -166,19 +172,20 @@ echo "VPN Connected:" $PPP_IF $PPP_IP
 
 while true
 do
-  if ping -c 10 -W 10 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
-    snooze 3 &
-    wait $!
+  status=$(ipsec status | grep "myvpn" | grep "INSTALLED")
+  if [ -z "$status" ]; then
+    echo "Connection down, attempting to restart..."
+    ipsec restart
+    ipsec up myvpn
   else
-    echo "Ping $PRIVATE_LAN_HEALTH_CHECK failed, checking PPPoE connection..."
     if check_pppoe_connection; then
       snooze 3 &
       wait $!
     else
-      echo "PPPoE connection is down, shutdown container..."
-      export -f disconnect_vpn
-      timeout 6s bash -c disconnect_vpn
-      exit 0
+      echo "PPPoE connection is down, reconnecting..."
+      export -f connect_l2tp
+      timeout 10s bash -c connect_l2tp
+      wait_for_pppoe
     fi
   fi
 done
