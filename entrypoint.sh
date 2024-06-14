@@ -3,7 +3,11 @@
 function check_pppoe_connection {
   if ping -c 1 -W 1 $PPP_IP >/dev/null 2>&1; then
     # "PPP interface $PPP_IF is up and reachable."
-    return 0
+    if ping -c 10 -W 10 $PRIVATE_LAN_HEALTH_CHECK >/dev/null 2>&1; then
+      return 0
+    else
+      return 1
+    fi
   else
     echo "PPP interface $PPP_IF is down or unreachable."
     return 1
@@ -61,6 +65,7 @@ function wait_for_pppoe {
     sleep 30
     exit 1
   fi
+  ip route del $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev $PPP_IF
   PPP_IF=$(ip addr show | awk '/inet.*ppp/ {print $NF}')
   echo "ppp interface" $PPP_IF "is up! waiting for IP of" $PPP_IF
   snooze 3 &
