@@ -19,7 +19,7 @@ function snooze {
 }
 
 function disconnect_vpn {
-  echo "===================================
+  echo "
         disconnect vpn
   ================================="
   echo "d myvpn" > /var/run/xl2tpd/l2tp-control
@@ -30,21 +30,21 @@ function disconnect_vpn {
 }
 
 function connect_ipsec {
-  echo "===================================
+  echo "
         connect ipsec
   ================================="
   ipsec up myvpn
 }
 
 function connect_l2tp {
-  echo "===================================
+  echo "
         connect l2tp
   ================================="
   echo "c myvpn" > /var/run/xl2tpd/l2tp-control
 }
 
 function wait_for_pppoe {
-  echo "===================================
+  echo "
         wait for PPPoE
   ================================="
   echo "waiting for ppp interface ..."
@@ -61,8 +61,6 @@ function wait_for_pppoe {
 
     export -f disconnect_vpn
     timeout 10s bash -c disconnect_vpn
-    # delay before reconnect
-    sleep 30
     exit 1
   fi
   ip route del $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev $PPP_IF
@@ -75,7 +73,7 @@ function wait_for_pppoe {
 }
 
 function connect_vpn {
-  echo "===================================
+  echo "
         connect vpn
  ================================="
   # rm -rf /var/run/ppp*
@@ -108,8 +106,6 @@ function connect_vpn {
 
       export -f disconnect_vpn
       timeout 10s bash -c disconnect_vpn
-      # delay before reconnect
-      sleep 30
       exit 1
     fi
     # 如果沒有找到目標字串，則使用 sleep 命令來暫停一段時間，然後繼續迴圈
@@ -138,11 +134,11 @@ sigterm_handler() {
 # 設置 SIGTERM 信號處理器
 trap 'sigterm_handler' SIGTERM
 
-echo "===================================
+echo "
         Config /etc/resolv.conf
         Config /etc/hosts
         Start proxy server ...
-==================================="
+ ================================="
 echo nameserver $PRIVATE_LAN_DNS > /etc/resolv.conf
 echo nameserver 1.1.1.1 >> /etc/resolv.conf
 sh /append-etc-hosts.sh
@@ -169,9 +165,6 @@ do
   fi
 done
 
-echo "===================================
-        Connecting VPN ...
-==================================="
 connect_vpn # >/dev/null 2>&1
 echo "VPN Connected:" $PPP_IF $PPP_IP
 
@@ -179,9 +172,10 @@ while true
 do
   status=$(ipsec status | grep "myvpn" | grep "INSTALLED")
   if [ -z "$status" ]; then
-    echo "Connection down, attempting to restart..."
-    ipsec restart
-    ipsec up myvpn
+    echo "ipsec connection down"
+    export -f disconnect_vpn
+    timeout 10s bash -c disconnect_vpn
+    exit 1
   else
     if check_pppoe_connection; then
       snooze 3 &
