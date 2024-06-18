@@ -40,6 +40,7 @@ function connect_l2tp {
   echo "
         connect l2tp
   ================================="
+  ipsec status
   echo "c myvpn" > /var/run/xl2tpd/l2tp-control
 }
 
@@ -76,8 +77,9 @@ function connect_vpn {
   echo "
         connect vpn
  ================================="
-  # rm -rf /var/run/ppp*
-  # rm -rf /var/run/*charon*
+  rm -rf /var/run/ppp*
+  rm -rf /var/run/*charon*
+  rm -rf /var/run/xl2tpd/l2tp-control
   ipsec restart
   service xl2tpd restart
 
