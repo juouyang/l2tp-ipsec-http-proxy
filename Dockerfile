@@ -14,7 +14,7 @@ COPY files/conf/ipsec.secrets /etc/ipsec.secrets
 COPY files/conf/xl2tpd.conf /etc/xl2tpd/xl2tpd.conf
 COPY files/conf/options.l2tpd.client /etc/ppp/options.l2tpd.client
 
-COPY entrypoint.sh /
+COPY functions.sh entrypoint.sh /
 
 RUN chmod 600 /etc/ipsec.secrets \
     && chmod 600 /etc/ppp/options.l2tpd.client \
