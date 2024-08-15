@@ -68,7 +68,7 @@ function _wait_l2tp {
     timeout 10s bash -c vpn_disconnect
     exit 1
   fi
-  ip route del $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev $PPP_IF
+  ip route del $PRIVATE_LAN_IP_SUBNET via $PPP_IP dev $PPP_IF 2>/dev/null
   PPP_IF=$(ip addr show | awk '/inet.*ppp/ {print $NF}')
   echo "ppp interface" $PPP_IF "is up! waiting for IP of" $PPP_IF
   snooze 3 &
