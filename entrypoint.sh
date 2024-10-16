@@ -1,4 +1,5 @@
 source functions.sh
+. /l2tp-ipsec.env
 
 echo "
         Config /etc/resolv.conf
@@ -11,7 +12,6 @@ sh /append-etc-hosts.sh
 privoxy /etc/privoxy/config
 
 # template out all the config files using env vars
-. /l2tp-ipsec.env
 sed -i 's/right=.*/right='$VPN_SERVER_IP'/' /etc/ipsec.conf
 echo ': PSK "'$VPN_IPSEC_PSK'"' > /etc/ipsec.secrets
 sed -i 's/lns = .*/lns = '$VPN_SERVER_IP'/' /etc/xl2tpd/xl2tpd.conf
